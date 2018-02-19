@@ -1,0 +1,100 @@
+Dumitrache Daniela Andreea
+Algoritmi Paraleli si Distribuiti
+Tema 3
+
+	In realizarea temei am pornit prin a citi fisierul de topologie. Fiecare proces sare 
+peste liniile care nu ii apartin, citind doar linia corespunzatoare rank-ului sau.
+In continuare am separat executia radacinii de a celorlalte procese.
+	Radacina continua prin a deschide pentru citire fisierul cu numele imaginilor si pentru
+scriere fisierul de statistica. Se citeste numarul de poze din primul fisier, apoi pentru
+fiecare poza se repeta urmatorul proces:
+- se citeste numele imaginii, filtrul de aplicat si numele imaginii finale
+- se trimite copiilor numele filtrului pentru a sti cum sa prelucreze imaginea cu tag-ul
+tag_filtru
+- se creeaza fisierul de iesire pentru noua poza
+- se citeste header-ul pozei conform formatului din enunt, avand drept separatoate
+posibile spatiu, \n, \t si \r
+- se trimit copiilor dimensiunile matricei (width si height)cu tag-ul wh
+- se calculeaza numarul de linii care revin fiecarui copil (line_count)
+- fiecare copil va primi matricea, liniile de start si de stop intre care sa realizeze
+prelucrarea, un vector ce contiine liniile de margine (de sus si de jos) corespunzatoare
+bucatii de matrice pe care o are de prelucrat : 
+* primul copil primeste de prelucrat liniile intre 0 si line_count. Linia de sus va fi o linie de 
+0 (negru), iar linia de jos va fi linia cu indicele line_count (copilul va analiza liniile
+intre 0 inclusiv si line_count exclusiv)
+Daca radacina are un singur copil atunci acesta va primi toata matricea, deci si linia
+de jos trebuie sa fie de 0;
+* urmatorii copii (in afara de ultimul) vor primii de prelucrat liniile in felul urmator:
+copilul i va avea de prelucrat liniile intre i * line_count si (i + 1) * line_count, unde
+i este indicele copilului din vectorul de vecini al radacinii. Ca linii de margine copilul i
+va primi liniile i * line_count - 1 (sus) si (i + 1) * line_count (jos);
+* ultimul copil va avea de prelucrat liniile intre (nrVecini - 1) * line_count (unde incepe
+bucata de matrice rezervata lui) si final, acoperind astfel si eventualele linii ramase
+in urma unei impartiri inegale.
+Matricea se trimite cu tag-ul sondaj, liniile de start si stop cu tag-ul linii_ss
+iar liniile dde margine cu tag-ul line_tag
+- in continuare radacina asteapta sa primeasca raspunsuri de la toti copii. Atunci cand
+primeste un mesaj cu tag reply radacina cauta in vector sa vada care copil este sursa
+mesajului. In functie de indicele acestuia din vector se stabileste bucata de matrice
+care i-a fost atribuita (ca mai sus), apoi se citesc liniile corespunzatoare din matricea
+primita si se copiaza in matricea finala.
+- Dupa ce a primit rezultatele de la toti copiii si le-a pus impreuna radacina scrie fisierul
+de output si procesul se reia
+
+	Dupa citirea si prelucrarea ultimei poze radacina trimite mesajul de terminare cu tag-ul
+finish, apoi asteapta reply-ul cu statistica de la copii.
+Radacina are un vector cu nProcesses componente, in care va completa statistica pentru
+fiecare proces. Aceste vector este initializat cu 0. La fiecare raspuns din partea
+unui copil se analizeaza vectorul primit si vectorul radacinii si se actualizeaza pozitiile
+care difera. La final radacina scrie rezultatul in fisierul de statistica si isi inchieie
+executia
+	Pentru restul proceselor executia se desfasoare astfel:
+- procesul asteapta primul mesaj. Acesta poate fi fie un mesaj de terminare (cu tag finish), fie
+un mesaj care anunta procesele ce filtru sa foloseasca.
+	In cazul unui mesaj de tip finish procesul curent trimite intai mesajul mai
+departe copiilor sai (daca exista). Procese frunza trimit un mesaj parintelui cu tag-ul stat
+continandun vector ce are pe pozitia rank-ului frunzei numarul de linii pe care le-a prelucrat. 
+Procesele intermediare asteapta astfel de mesaje si pun impreuna daca de la toti copii
+intr-un vector, pe care il dau mai departe la randul lor parintilor.
+	Daca mesajul nu a avut tag-ul de finish inseamna ca era un mesaj ce contine filtrul ce
+urmeaza sa fie aplicat pozei curente. Sursa acestui mesaj devine parintele procesului curent.
+- procesul curent trimite copiilor filtrul de aplicat cu tag-ul tag_filtru
+- se asteapta mesajul cu dimensiunile matricei cu tag-ul wh
+- se trimit copiilor dimensiunile matricei
+- se primeste matricea cu tag-ul sondaj
+- se primesc liniile de strt si stop cu tag-ul line_ss
+- se primesc liniile de margine cu tag-ul line_tag
+- se calculeaza line_count (cate linii revin fiecarui copil)
+- verificam daca vecinul de pe prima pozitie este parintele, iar daca nu, ii trimiem
+matricea, liniile de start si de stop si liniile de margine. Acesta va primii liniile intre
+start si start + line_count, iar ca margini va primii marginea de sus primita de procesul
+curent + marginea de jos primita de procesul curent (daca este singurul copil), sau
+linia line_count daca mai sunt si alti copii
+	Daca vecinul de pe prima pozitie a fost parintele atunci primul copil se afla pe
+pozitia 1. Acestuia i se trimit aceleasi lucruri ca mai sus.ca linie de start 
+- copiilor urmatori (daca exista) li se vor trimite liniile astfel: copilui de pe pozitia i se va trimite
+ca linie de start star-ul procesului curent + (i - 1) * line_count, iar ca linie de stop start + i * line_count.
+Defazajul apare datorita faptului ca pozitia 0 este ocupata de parinte.
+	Daca parintele nu a fost pe pozitia 1 se pastreaza acceasi indici ca in cazul radacinii.
+- ultimul copil primeste liniile intre (nrVecini - 2) * line_count + start si stop.
+Ca margini primeste (nrVecini - 2) * line_count + start - 1 si linia de margine de jos
+primita de procesul curent.
+- in continuare frunzele prelucreaza liniile dintre start si sto prin apelarea functiei
+find_value pentru fiecare pixel. Functia primeste filtrul, matricea, punctul curent si
+liniile de margine si aplica corespunzator filtrul calculand noua valoare a punctului
+in functie de pozitia acestuia: pentru prima si ultima coloana se pune 0 unde nu se pot
+obtine vecinii pe diagonala, pentru prima si ultima linie se iau valorile din liinile de margine.
+- Procesele intermediare asteapta apoi mesaje de la toti copiii. In functie de indicele
+lor din vectorul de vecini se calculeaza pozitiile pe care le-au avut de prelucrat
+si se completeaza corespunzator o noua matrice cu rezultatele primite.
+- dupa primirea mesajelor de la toti copiii se trimite noua matrice parintelui
+si procesul se reia
+
+OSB: - deoarece am alocat matricea static si nu aveam suficienta memorie pe local a trebuit
+sa rulez comanda ulimit -s unlimited pentru a face stiva nelimitata si a putea
+reprezenta matricile
+- am rulat tema de fep folosind coada campus-haswell pentru testare. Am testat ambele 
+topologii puse de dispozitie pe tot setul de imagini. De asemenea, am realizat si
+smoke-test-ul pentru testarea statisticii si a corectitudinii aplicarii filtrelor.
+- local am testat topologia de 12 procese cu smoke-test precum si cu
+tot setul de imagini
